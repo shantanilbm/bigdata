@@ -1,0 +1,59 @@
+[shantanilbm_gmail@ip-10-0-1-10 ~]$ sqoop import "-Dmapreduce.framework.name=local" --connect jdbc:mysql://10.0.1.10/bdhs_project --username labuser -P --table stock_prices --m 1 --target-dir /user/shantanilbm_gmail/hive_tables --hive-import --create-hive-table --hive-table shantanilbm_hive.stock_prices
+
+[shantanilbm_gmail@ip-10-0-1-10 ~]$ hive                                                                                                                                                                  
+Java HotSpot(TM) 64-Bit Server VM warning: ignoring option MaxPermSize=512M; support was removed in 8.0
+Java HotSpot(TM) 64-Bit Server VM warning: Using incremental CMS is deprecated and will likely be removed in a future release                                                                             
+Java HotSpot(TM) 64-Bit Server VM warning: ignoring option MaxPermSize=512M; support was removed in 8.0                                                                                                   
+                                                                                                                                                                                                          
+Logging initialized using configuration in jar:file:/opt/cloudera/parcels/CDH-5.14.0-1.cdh5.14.0.p0.24/jars/hive-common-1.1.0-cdh5.14.0.jar!/hive-log4j.properties                                        
+WARNING: Hive CLI is deprecated and migration to Beeline is recommended.
+
+hive> use shantanilbm_hive;                                                                                                                                                                                                   
+OK                                                                                                                                                                                                        
+Time taken: 1.613 seconds                                                                                                                                                                                 
+hive> show tables;                                                                                                                                                                                        
+OK                                                                                                                                                                                                        
+stock_prices                                                                                                                                                                                              
+Time taken: 0.198 seconds, Fetched: 1 row(s)                                                                                                                                                              
+hive> select count(*) from stock_prices;      
+
+hive> select * from stock_prices limit 10;  
+
+[shantanilbm_gmail@ip-10-0-1-10 ~]$ sqoop import "-Dmapreduce.framework.name=local" --connect jdbc:mysql://10.0.1.10/bdhs_project --username labuser -P --table stock_companies --m 1 --target-dir /user/shantanilbm_gmail/hive_tables --hive-import --create-hive-table --hive-table shantanilbm_hive.stock_companies
+
+hive> select * from stock_companies limit 10;
+
+hive> create table stock_prices_companies as select year(p.trans_date) trading_year,month(p.trans_date) trading_month, from_unixtime(unix_timestamp(p.trans_date,'yyyy-MM-dd'),'MMM') trading_month_mmm,p.symbol,c.company_name,substr(c.headquarters,instr(c.headquarters,'\;')+2) state,c.sector,c.sub_industry,round(avg(p.open),2) open,round(avg(close),2) close,round(avg(low),2) low,round(avg(high),2) high,round(avg(volume)) volume from stock_prices p join stock_companies c on (p.symbol = c.symbol) group by from_unixtime(unix_timestamp(p.trans_date,'yyyy-MM-dd'),'MMM'),month(p.trans_date),year(p.trans_date),p.symbol,c.company_name,substr(c.headquarters,instr(c.headquarters,'\;')+2),c.sector,c.sub_industry;
+
+hive> Create table company_horizon_view as select company_name,min(trading_year) min_year,max(trading_year) max_year,min(trading_month) min_month, 
+max(trading_month) max_month from stock_prices_companies group by company_name;
+
+hive> Select stock_start.company_name, ((close-open)/open)*100 growth_percent from (select chv.company_name,open from stock_prices_companies sd,company_horizon_view chv where sd.trading_year = chv.min_year and sd.trading_month = chv.min_month and sd.company_name = chv.company_name) stock_start,(select chv.company_name,close from stock_prices_companies sd, company_horizon_view chv where sd.trading_year = chv.max_year and sd.trading_month = chv.max_month and sd.company_name = chv.company_name) stock_end where stock_start.company_name = stock_end.company_name sort by growth_percent desc limit 5;
+
+hive> create table company_growth as select state,sub_industry,stock_start.company_name, ((stock_end.close-stock_start.open)/stock_start.open)*100 
+growth_percent from (select chv.company_name,open from stock_prices_companies sd,company_horizon_view chv where sd.trading_year = chv.min_year and 
+sd.trading_month = chv.min_month and sd.company_name = chv.company_name) stock_start,(select chv.company_name,close from stock_prices_companies sd,
+ company_horizon_view chv where sd.trading_year = chv.max_year and sd.trading_month = chv.max_month and sd.company_name = chv.company_name) stock_e
+nd,(select company_name,state,sub_industry from stock_prices_companies group by company_name,state,sub_industry)sd where (stock_end.close-stock_sta
+rt.open) > 0 and stock_start.company_name = stock_end.company_name and sd.company_name = stock_start.company_name;                                 
+
+hive> Create table industry_growth as select state,sub_industry,avg(growth_percent) ind_growth from company_growth group by state,sub_industry;
+
+hive> Select ig.state,ig.sub_industry,ig.ind_growth from industry_growth ig,(select state,max(ind_growth) max_growth from industry_growth group by state having count(sub_industry) >= 2)  inn_ig where inn_ig.state = ig.state and ig.ind_growth = inn_ig.max_growth;
+
+hive> create table sector_growth as select open.sector,open.trading_year,(close-open) growth from (select sector,trading_year,avg(open) open from stock_prices_companies where trading_month = 1 group by sector,trading_year) open, (select sector,trading_year,avg(close) close from stock_prices_companies where trading_month = 12 group by sector,trading_year) close where open.sector = close.sector and open.trading_year = close.trading_year;
+
+hive> select x.sector,x.trading_year,x.growth from sector_growth x,(select sector,min(growth) growth from sector_growth group by sector) y where x.sector = y.sector and x.growth = y.growth;
+
+hive> select x.sector,x.trading_year,x.growth from sector_growth x,(select sector,avg(growth) growth from sector_growth group by sector) y where x.sector = y.sector and x.growth = y.growth;
+
+hive> select x.sector,x.trading_year,x.growth from sector_growth x,(select sector,max(growth) growth from sector_growth group by sector) y where x.sector = y.sector and x.growth = y.growth;
+
+
+
+   
+     
+
+
+
+

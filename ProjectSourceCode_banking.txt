@@ -1,0 +1,160 @@
+val df = spark.read.format("csv").option("inferSchema","true").option("header","true").option("delimiter",",").load("/common4all/resources/Bank_full.csv")
+
+19/09/14 12:42:09 WARN lineage.LineageWriter: Lineage directory /var/log/spark2/lineage doesn't exist or is not writable. Lineage for this application will be disabled.
+df: org.apache.spark.sql.DataFrame = [age: int, job: string ... 15 more fields]
+
+df.show()
+df.printSchema()
+df.count()
+
+scala> val totCount = df.count().toDouble                                                                                         
+totCount: Double = 45211.0 
+
+scala> val subcryes = df.filter($"y" === "yes").count().toDouble                                                                      
+subcryes: Double = 5289.0
+
+scala> val sr = subcryes/totCount * 100                                                                                                
+sr: Double = 11.698480458295547
+
+scala> val fr = 100 - sr                                                                                                               
+fr: Double = 88.30151954170445
+
+scala> val subcrno = df.filter($"y" === "no").count().toDouble                                                                         
+subcrno: Double = 39922.0
+
+scala> val fr = subcrno/totCount * 100                                                                                                 
+fr: Double = 88.30151954170445 
+
+scala> df.select(max($"age"),min($"age"),mean($"age")).show()                                                                                        
++--------+--------+-----------------+                                                                                                                
+|max(age)|min(age)|         avg(age)|                                                                                                                
++--------+--------+-----------------+                                                                                                                
+|      95|      18|40.93621021432837|                                                                                                                
++--------+--------+-----------------+ 
+
+df.createOrReplaceTempView("Bankdata")
+
+scala> spark.sql("select avg(balance) as avgbalance from Bankdata").show()                                                                           
++------------------+                                                                                                                                 
+|        avgbalance|                                                                                                                                 
++------------------+                                                                                                                                 
+|1362.2720576850766|                                                                                                                                 
++------------------+ 
+
+scala> park.sql("select percentile(balance,0.5) as medianvalue from Bankdata").show()                                                                
++-----------+                                                                                                                                        
+|medianvalue|                                                                                                                                        
++-----------+                                                                                                                                        
+|      448.0|                                                                                                                                        
++-----------+
+
+scala> spark.sql("select avg(age) from Bankdata where y = 'yes'").show                                                                               
++------------------+                                                                                                                                 
+|          avg(age)|                                                                                                                                 
++------------------+                                                                                                                                 
+|41.670069956513515|                                                                                                                                 
++------------------+                                                                                                                                 
+              
+scala> spark.sql("select avg(age) from Bankdata where y = 'no'").show                                                                                
++-----------------+                                                                                                                                  
+|         avg(age)|                                                                                                                                  
++-----------------+                                                                                                                                  
+|40.83898602274435|                                                                                                                                  
++-----------------+ 
+
+
+scala> df.groupBy("y").agg((avg($"age"))).show()                                                                                                     
++---+------------------+                                                                                                                             
+|  y|          avg(age)|                                                                                                                             
++---+------------------+                                                                                                                             
+| no| 40.83898602274435|                                                                                                                             
+|yes|41.670069956513515|                                                                                                                             
++---+------------------+                                                                                                                             
+
+scala> df.groupBy($"y",$"marital").count().show()                                                                                                    
++---+--------+-----+                                                                                                                                 
+|  y| marital|count|                                                                                                                                 
++---+--------+-----+                                                                                                                                 
+| no| married|24459|                                                                                                                                 
+| no|  single|10878|                                                                                                                                 
+|yes|  single| 1912|                                                                                                                                 
+|yes| married| 2755|                                                                                                                                 
+| no|divorced| 4585|                                                                                                                                 
+|yes|divorced|  622|                                                                                                                                 
++---+--------+-----+
+
+
+scala> df.groupBy($"y",$"marital").count().sort($"count".asc).show()                                                                                 
++---+--------+-----+
+|  y| marital|count|                                                                                                                                 
++---+--------+-----+                                                                                                                                 
+|yes|divorced|  622|                                                                                                                                 
+|yes|  single| 1912|                                                                                                                                 
+|yes| married| 2755|                                                                                                                                 
+| no|divorced| 4585|                                                                                                                                 
+| no|  single|10878|                                                                                                                                 
+| no| married|24459|                                                                                                                                 
++---+--------+-----+ 
+
+
+scala> df.groupBy($"y",$"marital",$"age").count().show()                                                                                             
++---+--------+---+-----+                                                                                                                             
+|  y| marital|age|count|                                                                                                                             
++---+--------+---+-----+                                                                                                                             
+| no|divorced| 57|  133|                                                                                                                             
+|yes|divorced| 45|   24|                                                                                                                             
+|yes|divorced| 58|   17|                                                                                                                             
+| no|divorced| 51|  144|                                                                                                                             
+|yes|divorced| 48|   16|                                                                                                                             
+| no| married| 73|   17|                                                                                                                             
+| no|divorced| 69|    5|                                                                                                                             
+|yes|  single| 61|    1|                                                                                                                             
+| no|divorced| 65|    7|                                                                                                                             
+| no| married| 40|  856|                                                                                                                             
+| no| married| 52|  632|                                                                                                                             
+| no|  single| 42|  196|                                                                                                                             
+| no| married| 34| 1013|                                                                                                                             
+| no|divorced| 60|   83|                                                                                                                             
+|yes| married| 49|   71|                                                                                                                             
+| no| married| 59|  517|                                                                                                                             
+| no|  single| 72|    5|                                                                                                                             
+|yes| married| 38|   86|                                                                                                                             
+| no|divorced| 24|    1|                                                                                                                             
+| no|divorced| 81|    6|                                                                                                                             
++---+--------+---+-----+                                                                                                                             
+only showing top 20 rows 
+
+
+scala> import org.apache.spark.sql.functions.udf                                                                                      
+import org.apache.spark.sql.functions.udf 
+
+scala> def ageGroup = udf((age:Int)=> { age match{ case n if n <=30 => "young" case n if n >=65 => "old" case _ => "mid"} })           
+ageGroup: org.apache.spark.sql.expressions.UserDefinedFunction
+
+scala> val newdf = df.withColumn("agecategory",ageGroup(df("age")))                                                                  
+newdf: org.apache.spark.sql.DataFrame = [age: int, job: string ... 16 more fields]
+
+df.show(5)
+
+newdf.show(5)
+
+scala> newdf.groupBy($"y",$"agecategory").count().sort($"count".desc).show()                                                                         
++---+-----------+-----+
+|  y|agecategory|count|                                                                                                                              
++---+-----------+-----+                                                                                                                              
+| no|        mid|33568|                                                                                                                              
+| no|      young| 5885|                                                                                                                              
+|yes|        mid| 3803|                                                                                                                              
+|yes|      young| 1145|                                                                                                                              
+| no|        old|  469|                                                                                                                              
+|yes|        old|  341|                                                                                                                              
++---+-----------+-----+
+
+
+
+
+
+
+
+
+
